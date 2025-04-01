@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% block title %}Equipment Status{% endblock %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Real-time Machine Health Overview -->
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="dashboard-card text-center">
+                <h5 class="text-white">Total Machines</h5>
+                <h3 id="totalMachines" class="text-white">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="dashboard-card text-center" style="background-color: #FFC300;">
+                <h5 class="text-white">Warning State</h5>
+                <h3 id="warningMachines" class="text-white">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="dashboard-card text-center" style="background-color: #F44336;">
+                <h5 class="text-white">Critical State</h5>
+                <h3 id="criticalMachines" class="text-white">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="dashboard-card text-center" style="background-color: #4CAF50;">
+                <h5 class="text-white">Operating Normally</h5>
+                <h3 id="normalMachines" class="text-white">0</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine Status Table with Filter and Pagination -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="dashboard-card">
+                <h5 class="text-center text-white">Machine Status Table</h5>
+                <div class="d-flex justify-content-between mb-2">
+                    <div>
+                        <label for="statusFilter" class="text-white">Filter by Status:</label>
+                        <select id="statusFilter" class="form-select" style="width: 200px;">
+                            <option value="all">All</option>
+                            <option value="Critical">Critical</option>
+                            <option value="Warning">Warning</option>
+                            <option value="Normal">Normal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="itemsPerPage" class="text-white">Items per Page:</label>
+                        <select id="itemsPerPage" class="form-select" style="width: 100px;">
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="15">15</option>
+                        </select>
+                    </div>
+                </div>
+                <table class="table table-dark table-striped">
+                    <thead>
+                        <tr>
+                            <th>Machine ID</th>
+                            <th>Type</th>
+                            <th>Current Status</th>
+                            <th>Last Maintenance</th>
+                            <th>Predicted Failure Probability</th>
+                            <th>Next Recommended Maintenance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="machineStatusTable">
+                        <!-- Data will be dynamically populated -->
+                    </tbody>
+                </table>
+                <div class="d-flex justify-content-center">
+                    <button id="prevPage" class="btn btn-primary me-2">Previous</button>
+                    <span id="currentPage" class="text-white">Page 1</span>
+                    <button id="nextPage" class="btn btn-primary ms-2">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Sensor Readings Dashboard -->
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="dashboard-card">
+                <h5 class="text-center text-white">Temperature Distribution</h5>
+                <div id="temperatureGauge" style="height: 300px;"></div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="dashboard-card">
+                <h5 class="text-center text-white">Vibration Levels Heatmap</h5>
+                <div id="vibrationHeatmap" style="height: 300px;"></div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="dashboard-card">
+                <h5 class="text-center text-white">Pressure Readings (Last 24 Hours)</h5>
+                <div id="pressureTrend" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphs/Visualizations -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card">
+                <h5 class="text-center text-white">Temperature vs Failure Probability</h5>
+                <div id="temperatureFailureScatter" style="height: 400px;"></div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card">
+                <h5 class="text-center text-white">Failure Rates by Workload Level</h5>
+                <div id="workloadFailureBarChart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Helper function to handle empty or invalid data
+        function handleEmptyData(data, chartId, message) {
+            if (!data || data.length === 0) {
+                document.getElementById(chartId).innerHTML = `<p style="color: white; text-align: center;">${message}</p>`;
+                return true;
+            }
+            return false;
+        }
+
+        // Fallback mechanism for API errors
+        function handleApiError(chartId, errorMessage) {
+            console.error(errorMessage);
+            document.getElementById(chartId).innerHTML = '<p style="color: white; text-align: center;">Failed to fetch data</p>';
+        }
+
+        let currentPage = 1;
+        let itemsPerPage = 5;
+        let filteredData = [];
+        let allData = [];
+
+        // Fetch Real-time Machine Health Overview
+        fetch('/api/machine-health-overview')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Machine Health Overview Data:', data); // Log fetched data
+                if (data.error) {
+                    console.error('Error fetching machine health overview:', data.error);
+                    return;
+                }
+                document.getElementById('totalMachines').innerText = data.total_machines || 0;
+                document.getElementById('warningMachines').innerText = data.warning_machines || 0;
+                document.getElementById('criticalMachines').innerText = data.critical_machines || 0;
+                document.getElementById('normalMachines').innerText = data.normal_machines || 0;
+            })
+            .catch(error => {
+                console.error('Error fetching machine health overview:', error);
+            });
+
+        // Fetch Machine Status Table
+        function fetchMachineStatus() {
+            fetch('/api/machine-status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Machine Status Data:', data); // Log fetched data
+                    if (!data || data.length === 0) {
+                        document.getElementById('machineStatusTable').innerHTML = '<tr><td colspan="6" class="text-center">No data available</td></tr>';
+                        return;
+                    }
+                    allData = data;
+                    applyFilterAndPagination();
+                })
+                .catch(error => {
+                    console.error('Error fetching machine status:', error);
+                    document.getElementById('machineStatusTable').innerHTML = '<tr><td colspan="6" class="text-center">Failed to fetch data</td></tr>';
+                });
+        }
+
+        // Apply filter and pagination
+        function applyFilterAndPagination() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+
+            // Filter data based on status
+            filteredData = allData.filter(machine => {
+                if (statusFilter === 'all') return true;
+                return machine.Current_Status === statusFilter;
+            });
+
+            // Paginate data
+            const paginatedData = filteredData.slice(startIndex, endIndex);
+
+            // Render table
+            renderTable(paginatedData);
+
+            // Update pagination controls
+            document.getElementById('currentPage').innerText = `Page ${currentPage}`;
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = endIndex >= filteredData.length;
+        }
+
+        // Render table
+        function renderTable(data) {
+            const tableBody = document.getElementById('machineStatusTable');
+            tableBody.innerHTML = '';
+            if (data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No data available</td></tr>';
+                return;
+            }
+            data.forEach(machine => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${machine.Machine_ID}</td>
+                    <td>${machine.Type}</td>
+                    <td>${machine.Current_Status}</td>
+                    <td>${machine.Last_Maintenance}</td>
+                    <td>${machine.Predicted_Failure_Probability}%</td>
+                    <td>${machine.Next_Recommended_Maintenance}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Event listeners for filter and pagination
+        document.getElementById('statusFilter').addEventListener('change', () => {
+            currentPage = 1;
+            applyFilterAndPagination();
+        });
+
+        document.getElementById('itemsPerPage').addEventListener('change', (event) => {
+            itemsPerPage = parseInt(event.target.value, 10);
+            currentPage = 1;
+            applyFilterAndPagination();
+        });
+
+        document.getElementById('prevPage').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                applyFilterAndPagination();
+            }
+        });
+
+        document.getElementById('nextPage').addEventListener('click', () => {
+            if ((currentPage * itemsPerPage) < filteredData.length) {
+                currentPage++;
+                applyFilterAndPagination();
+            }
+        });
+
+        // Initial fetch
+        fetchMachineStatus();
+
+        // Fetch Temperature Distribution
+        fetch('/api/temperature-distribution')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Temperature Distribution Data:', data); // Log fetched data
+                if (!data || data.average_temperature === 0) {
+                    handleEmptyData(null, 'temperatureGauge', 'No data available for Temperature Distribution');
+                    return;
+                }
+
+                const trace = {
+                    type: "indicator",
+                    mode: "gauge+number",
+                    value: data.average_temperature,
+                    gauge: {
+                        axis: { range: [0, 100] },
+                        bar: { color: "#FF5733" },
+                        steps: [
+                            { range: [0, 50], color: "#4CAF50" },
+                            { range: [50, 80], color: "#FFC300" },
+                            { range: [80, 100], color: "#F44336" }
+                        ]
+                    }
+                };
+                const layout = {
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('temperatureGauge', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching temperature distribution:', error);
+                handleApiError('temperatureGauge', 'Error fetching temperature distribution');
+            });
+
+        // Fetch Vibration Levels Heatmap
+        fetch('/api/vibration-heatmap')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Vibration Heatmap Data:', data); // Log fetched data
+                if (!data || data.vibration_levels.length === 0) {
+                    handleEmptyData(null, 'vibrationHeatmap', 'No data available for Vibration Levels');
+                    return;
+                }
+
+                const trace = {
+                    z: data.vibration_levels,
+                    x: data.machines,
+                    y: data.timestamps,
+                    type: 'heatmap',
+                    colorscale: 'Viridis'
+                };
+                const layout = {
+                    xaxis: { title: "Machines" },
+                    yaxis: { title: "Time" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('vibrationHeatmap', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching vibration levels heatmap:', error);
+                handleApiError('vibrationHeatmap', 'Error fetching vibration levels heatmap');
+            });
+
+        // Fetch Pressure Readings Trend
+        fetch('/api/pressure-trend')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Pressure Trend Data:', data); // Log fetched data
+                if (!data || data.pressure_readings.length === 0) {
+                    handleEmptyData(null, 'pressureTrend', 'No data available for Pressure Readings');
+                    return;
+                }
+
+                const trace = {
+                    x: data.timestamps,
+                    y: data.pressure_readings,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    marker: { color: '#FFC300' }
+                };
+                const layout = {
+                    xaxis: { title: "Time" },
+                    yaxis: { title: "Pressure (kPa)" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('pressureTrend', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching pressure readings trend:', error);
+                handleApiError('pressureTrend', 'Error fetching pressure readings trend');
+            });
+
+        // Fetch Temperature vs Failure Probability
+        fetch('/api/temperature-failure-probability')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Temperature vs Failure Probability Data:', data); // Log fetched data
+                if (!data || !data.temperatures) {
+                    handleEmptyData(null, 'temperatureFailureScatter', 'No data available for Temperature vs Failure Probability');
+                    return;
+                }
+
+                const trace = {
+                    x: data.temperatures,
+                    y: data.failure_probabilities,
+                    mode: 'markers',
+                    marker: { color: '#FF5733' }
+                };
+                const layout = {
+                    xaxis: { title: "Temperature (°C)" },
+                    yaxis: { title: "Failure Probability (%)" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('temperatureFailureScatter', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching temperature vs failure probability:', error);
+                handleApiError('temperatureFailureScatter', 'Error fetching temperature vs failure probability');
+            });
+
+        // Fetch Failure Rates by Workload Level
+        fetch('/api/workload-failure-rates')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Workload Failure Rates Data:', data); // Log fetched data
+                if (!data || !data.workload_levels) {
+                    handleEmptyData(null, 'workloadFailureBarChart', 'No data available for Workload Failure Rates');
+                    return;
+                }
+
+                const trace = {
+                    x: data.workload_levels,
+                    y: data.failure_rates,
+                    type: 'bar',
+                    marker: { color: '#4CAF50' }
+                };
+                const layout = {
+                    xaxis: { title: "Workload Level" },
+                    yaxis: { title: "Failure Rate (%)" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('workloadFailureBarChart', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching workload failure rates:', error);
+                handleApiError('workloadFailureBarChart', 'Error fetching workload failure rates');
+            });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<style>
+    .dashboard-card {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+    }
+    
+    .stat-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        padding: 25px 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .stat-card h5 {
+        font-size: 1rem;
+        margin-bottom: 10px;
+        font-weight: 500;
+        opacity: 0.9;
+    }
+    
+    .stat-card h3 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    
+    .alert-card, .schedule-card {
+        border-radius: 10px;
+        padding: 20px;
+        margin: 10px;
+        width: 280px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .alert-card:hover, .schedule-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .alert-card::after, .schedule-card::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+    }
+    
+    .alert-card::after {
+        background: #F44336;
+    }
+    
+    .schedule-card::after {
+        background: #4CAF50;
+    }
+    
+    .btn-action {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+        min-width: 200px;
+    }
+    
+    .btn-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    .section-title {
+        font-size: 1.4rem;
+        margin-bottom: 20px;
+        font-weight: 600;
+        position: relative;
+        padding-bottom: 10px;
+    }
+    
+    .section-title::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .chart-container {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 15px;
+        margin-top: 15px;
+    }
+    
+    .no-data-message {
+        padding: 40px;
+        text-align: center;
+        opacity: 0.7;
+    }
+
+    .alert-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .alert-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, #F44336, #D32F2F);
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        animation: pulse 1.5s infinite;
+    }
+
+    .alert-item h6 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: bold;
+    }
+
+    .alert-item p {
+        margin: 0;
+        font-size: 0.9rem;
+    }
+
+    .alert-item button {
+        background: white;
+        color: #F44336;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 5px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .alert-item button:hover {
+        background: #FFC300;
+        color: #1e293b;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+        50% {
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+        }
+    }
+
+    .schedule-card {
+        background: linear-gradient(135deg, #2d3748, #4a5568);
+        border-radius: 10px;
+        padding: 20px;
+        width: 300px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        color: white;
+    }
+
+    .schedule-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .schedule-card h6 {
+        font-size: 1.1rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    .schedule-card p {
+        font-size: 0.9rem;
+        margin: 5px 0;
+    }
+
+    .schedule-card .btn {
+        margin-top: 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 5px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .schedule-card .btn:hover {
+        background-color: #FFC300;
+        color: #1e293b;
+    }
+</style>
+
+<div class="container-fluid mt-4">
+    <!-- Immediate Status Overview -->
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="stat-card" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                <h5 class="text-white">Total Machines</h5>
+                <h3 id="totalMachines" class="text-white">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="stat-card" style="background: linear-gradient(135deg, #FFC300 0%, #FFA000 100%);">
+                <h5 class="text-white">Warning State</h5>
+                <h3 id="warningMachines" class="text-white">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="stat-card" style="background: linear-gradient(135deg, #F44336 0%, #D32F2F 100%);">
+                <h5 class="text-white">Critical State</h5>
+                <h3 id="criticalMachines" class="text-white">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="stat-card" style="background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);">
+                <h5 class="text-white">Operating Normally</h5>
+                <h3 id="normalMachines" class="text-white">0</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine Health Indicators Section -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="dashboard-card">
+                <h5 class="section-title text-center text-white">Machine Health Indicators</h5>
+                <div class="chart-container">
+                    <div id="machineHealthIndicatorsChart" style="height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Critical Alerts Prioritization -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="dashboard-card">
+                <h5 class="section-title text-center text-white">Critical Alerts</h5>
+                <div id="criticalAlertsContainer" class="alert-container">
+                    <!-- Alerts will be dynamically populated -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Maintenance Scheduling Panel Section -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="dashboard-card">
+                <h5 class="section-title text-center text-white">Maintenance Scheduling Panel</h5>
+                <div id="maintenanceScheduleContainer" class="d-flex flex-wrap justify-content-center gap-3">
+                    <!-- Limited cards will be dynamically populated -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Action Triggers -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="dashboard-card">
+                <h5 class="section-title text-center text-white">Quick Actions</h5>
+                <div class="d-flex justify-content-center flex-wrap">
+                    <button class="btn btn-primary btn-action mx-3 my-2" onclick="triggerMaintenance()">Schedule Maintenance</button>
+                    <button class="btn btn-danger btn-action mx-3 my-2" onclick="sendAlert()">Send Alert</button>
+                    <button class="btn btn-success btn-action mx-3 my-2" onclick="generateReport()">Generate Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine Performance Trends -->
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="dashboard-card">
+                <h5 class="section-title text-center text-white">Machine Performance Trends</h5>
+                <div class="chart-container">
+                    <div id="performanceTrendsChart" style="height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fetch Real-time Machine Health Overview
+        fetch('/api/machine-health-overview')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('totalMachines').innerText = data.total_machines || 0;
+                document.getElementById('warningMachines').innerText = data.warning_machines || 0;
+                document.getElementById('criticalMachines').innerText = data.critical_machines || 0;
+                document.getElementById('normalMachines').innerText = data.normal_machines || 0;
+            })
+            .catch(error => console.error('Error fetching machine health overview:', error));
+
+        // Machine Health Indicators Chart
+        fetch('/api/health-indicators')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data, 'machineHealthIndicatorsChart', 'No data available for Machine Health Indicators')) return;
+
+                const trace = {
+                    x: data.map(item => item.Machine_ID),
+                    y: data.map(item => item.Health_Score),
+                    type: 'bar',
+                    marker: { color: '#4CAF50' }
+                };
+                const layout = {
+                    title: 'Machine Health Indicators',
+                    xaxis: { title: 'Machine ID' },
+                    yaxis: { title: 'Health Score' },
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    font: { color: '#ffffff' },
+                    margin: { t: 30, b: 60, l: 60, r: 30 },
+                    hovermode: 'closest'
+                };
+                Plotly.newPlot('machineHealthIndicatorsChart', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching machine health indicators data:', error);
+                document.getElementById('machineHealthIndicatorsChart').innerHTML = '<div class="no-data-message text-white">Failed to fetch Machine Health Indicators data.</div>';
+            });
+
+        // Fetch Critical Alerts
+        fetch('/api/at-risk-machines')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('criticalAlertsContainer');
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="text-white text-center">No critical alerts available</div>';
+                    return;
+                }
+                data.forEach(alert => {
+                    const alertItem = document.createElement('div');
+                    alertItem.className = 'alert-item';
+                    alertItem.innerHTML = `
+                        <div>
+                            <h6>Machine ID: ${alert.Machine_ID}</h6>
+                            <p>Failure Type: ${alert.Failure_Type}</p>
+                            <p>Failure Time: ${alert.Predicted_Failure_Time}</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-light" onclick="acknowledgeAlert('${alert.Machine_ID}')">Acknowledge</button>
+                            <button class="btn btn-sm btn-danger" onclick="cancelAlert('${alert.Machine_ID}', this)">Cancel</button>
+                        </div>
+                    `;
+                    container.appendChild(alertItem);
+                });
+            })
+            .catch(error => console.error('Error fetching critical alerts:', error));
+
+        // Cancel Alert Functionality
+        window.cancelAlert = function (machineId, button) {
+            const alertItem = button.closest('.alert-item');
+            alertItem.remove();
+            console.log(`Alert for Machine ID ${machineId} has been canceled.`);
+        };
+
+        // Acknowledge Alert Functionality
+        window.acknowledgeAlert = function (machineId) {
+            alert(`Acknowledged alert for Machine ID ${machineId}`);
+        };
+
+        // Fetch Maintenance Scheduling (Limit to 5 machines)
+        fetch('/api/maintenance-schedule')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('maintenanceScheduleContainer');
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="text-white text-center">No maintenance schedule available</div>';
+                    return;
+                }
+                data.slice(0, 5).forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'schedule-card';
+                    card.innerHTML = `
+                        <h6>Machine ID: ${item.Machine_ID}</h6>
+                        <p><strong>Date:</strong> ${item.Scheduled_Date}</p>
+                        <p><strong>Type:</strong> ${item.Maintenance_Type}</p>
+                        <p><strong>Cost:</strong> $${item.Estimated_Cost}</p>
+                        <p><strong>Duration:</strong> ${item.Estimated_Duration} hrs</p>
+                        <button onclick="viewMaintenanceDetails('${item.Machine_ID}')">View Details</button>
+                    `;
+                    container.appendChild(card);
+                });
+            })
+            .catch(error => console.error('Error fetching maintenance schedule:', error));
+
+        // Fetch Machine Performance Trends
+        fetch('/api/failure-trends')
+            .then(response => response.json())
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) {
+                    document.getElementById('performanceTrendsChart').innerHTML = '<div class="no-data-message text-white">No data available for performance trends</div>';
+                    return;
+                }
+                const trace = {
+                    x: data.map(item => item.Month), // Use Month instead of Date
+                    y: data.map(item => item.Failure_Rate),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: '#FF5733', width: 3 },
+                    marker: { size: 8 }
+                };
+                const layout = {
+                    title: "Machine Performance Trends (Monthly)",
+                    xaxis: { title: "Month" },
+                    yaxis: { title: "Failure Rate (%)" },
+                    plot_bgcolor: "rgba(0,0,0,0)",
+                    paper_bgcolor: "rgba(0,0,0,0)",
+                    font: { color: "#ffffff" },
+                    margin: { t: 30, b: 60, l: 60, r: 30 },
+                    hovermode: 'closest'
+                };
+                Plotly.newPlot('performanceTrendsChart', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching performance trends:', error);
+                document.getElementById('performanceTrendsChart').innerHTML = '<div class="no-data-message text-white">Failed to fetch data</div>';
+            });
+    });
+
+    // Quick Action Triggers
+    function triggerMaintenance() {
+        alert('Maintenance scheduling triggered!');
+    }
+
+    function sendAlert() {
+        alert('Alert sent to relevant teams!');
+    }
+
+    function generateReport() {
+        alert('Report generation initiated!');
+    }
+    
+    function handleAlertAction(machineId) {
+        alert(`Acknowledged alert for machine ${machineId}`);
+    }
+    
+    function viewMaintenanceDetails(machineId) {
+        alert(`Viewing details for machine ${machineId}`);
+    }
+
+    // Helper function to handle empty or invalid data
+    function handleEmptyData(data, chartId, message) {
+        if (!data || data.length === 0) {
+            document.getElementById(chartId).innerHTML = `<div class="no-data-message text-white">${message}</div>`;
+            return true;
+        }
+        return false;
+    }
+</script>
+{% endblock %}

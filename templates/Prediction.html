@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Predict{% endblock %}
+{% block content %}
+    <div class="container-fluid "> <!-- Set container width to 100% -->
+        <div class="content" >
+            <h2 class="text-center mb-4">Machine Failure Prediction</h2>
+            <form id="prediction-form" method="POST" class="form-container mx-auto container">
+                <!-- Step 1: General Details -->
+                <div class="form-step active" >
+                    <h4>Step 1: General Details</h4>
+                    <div class="form-group">
+                        <label for="age">Age:</label>
+                        <input type="number" class="form-control" id="age" name="Age" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="temperature">Temperature (°C):</label>
+                        <input type="number" class="form-control" id="temperature" name="Temperature" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="vibration">Vibration (mm/s):</label>
+                        <input type="number" class="form-control" id="vibration" name="Vibration" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="pressure">Pressure (psi):</label>
+                        <input type="number" class="form-control" id="pressure" name="Pressure" required>
+                    </div>
+                    <button type="button" class="btn btn-primary next-btn">Next</button>
+                </div>
+
+                <!-- Step 2: Operational Details -->
+                <div class="form-step">
+                    <h4>Step 2: Operational Details</h4>
+                    <div class="form-group">
+                        <label for="downtime">Downtime (hrs):</label>
+                        <input type="number" class="form-control" id="downtime" name="Downtime" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="production_rate">Production Rate:</label>
+                        <input type="number" class="form-control" id="production_rate" name="Production_Rate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="operational_hours">Operational Hours:</label>
+                        <input type="number" class="form-control" id="operational_hours" name="Operational_Hours" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="maintenance_cost">Maintenance Cost ($):</label>
+                        <input type="number" class="form-control" id="maintenance_cost" name="Maintenance_Cost" required>
+                    </div>
+                    <button type="button" class="btn btn-secondary prev-btn">Previous</button>
+                    <button type="button" class="btn btn-primary next-btn">Next</button>
+                </div>
+
+                <!-- Step 3: Environmental Details -->
+                <div class="form-step">
+                    <h4>Step 3: Environmental Details</h4>
+                    <div class="form-group">
+                        <label for="ambient_temperature">Ambient Temperature (°C):</label>
+                        <input type="number" class="form-control" id="ambient_temperature" name="Ambient_Temperature" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="ambient_humidity">Ambient Humidity (%):</label>
+                        <input type="number" class="form-control" id="ambient_humidity" name="Ambient_Humidity" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="anomaly_score">Anomaly Score:</label>
+                        <input type="number" class="form-control" id="anomaly_score" name="Anomaly_Score" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="anomaly_flag">Anomaly Flag:</label>
+                        <select class="form-control" id="anomaly_flag" name="Anomaly_Flag" required>
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-secondary prev-btn">Previous</button>
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </div>
+            </form>
+            <div id="result" class="mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        const steps = document.querySelectorAll('.form-step');
+        const nextBtns = document.querySelectorAll('.next-btn');
+        const prevBtns = document.querySelectorAll('.prev-btn');
+
+        let currentStep = 0;
+
+        nextBtns.forEach((btn, index) => {
+            btn.addEventListener('click', () => {
+                steps[currentStep].classList.remove('active');
+                currentStep++;
+                steps[currentStep].classList.add('active');
+            });
+        });
+
+        prevBtns.forEach((btn, index) => {
+            btn.addEventListener('click', () => {
+                steps[currentStep].classList.remove('active');
+                currentStep--;
+                steps[currentStep].classList.add('active');
+            });
+        });
+
+        document.getElementById('prediction-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const data = Object.fromEntries(formData.entries());
+
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                document.getElementById('result').innerHTML = `
+                    <p>Prediction: ${result.prediction}</p>
+                    <p>Failure Type: ${result.failure_type || 'N/A'}</p>
+                    <p>Reason: ${result.reason}</p>
+                `;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+
+    <style>
+        .form-container {
+            max-width: 100%; /* Increased width */
+            padding: 20px;
+            color: white; /* Ensures text is visible */
+           
+        }
+
+        .form-step {
+            min-width:400px;
+            display: none;
+            border: 1px solid #2d3748; /* Matches your theme */
+            border-radius: 8px;
+            background-color: #1e293b; /* Matches your theme */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width:40%;
+            padding:30px;
+        }
+
+        .form-step.active {
+            display: block;
+            padding:20px;
+
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            font-weight: bold;
+            color: #f97316; /* Matches your theme */
+        }
+
+        .form-control {
+            background-color: #2d3748; /* Matches your theme */
+            color: white;
+            border: 1px solid #4a5568; /* Matches your theme */
+        }
+
+        .form-control:focus {
+            border-color: #f97316; /* Matches your theme */
+            box-shadow: 0 0 5px #f97316;
+        }
+
+        .btn {
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background-color: #f97316; /* Matches your theme */
+            border-color: #f97316;
+        }
+
+        .btn-primary:hover {
+            background-color: #ea580c; /* Matches your theme */
+        }
+
+        .btn-secondary {
+            background-color: #4a5568; /* Matches your theme */
+            border-color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background-color: #374151; /* Matches your theme */
+        }
+
+        #result {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #f97316; /* Matches your theme */
+        }
+    </style>
+{% endblock %}
