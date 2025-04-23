@@ -1,0 +1,715 @@
+{% extends "base.html" %}
+{% block title %}Predict{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="content">
+        <h2 class="text-center mb-4">Machine Failure Prediction</h2>
+        <div class="row justify-content-center" id="form-result-container">
+            <!-- Prediction Form -->
+            <div class="col-md-12" id="form-container">
+                <form id="prediction-form" method="POST" action="/predict" class="form-container mx-auto container" novalidate>
+                    <!-- Step 1: General Details -->
+                    <div class="form-step active">
+                        <h4 class="step-header"><i class="fas fa-cog mr-2"></i>General Details</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="age"><i class="fas fa-calendar-alt mr-1"></i>Age (years):</label>
+                                    <input type="number" class="form-control custom-input" id="age" name="age" required>
+                                    <small class="form-text text-muted">Machine age in years</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="temperature"><i class="fas fa-thermometer-half mr-1"></i>Temperature
+                                        (°C):</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="temperature"
+                                        name="temperature" required>
+                                    <small class="form-text text-muted">Current operating temperature</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="vibration"><i class="fas fa-wave-square mr-1"></i>Vibration (mm/s):</label>
+                                    <input type="number" class="form-control custom-input" id="vibration" name="vibration"
+                                        required>
+                                    <small class="form-text text-muted">Vibration intensity</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="pressure"><i class="fas fa-tachometer-alt mr-1"></i>Pressure (psi):</label>
+                                    <input type="number" class="form-control custom-input" id="pressure" name="pressure"
+                                        required>
+                                    <small class="form-text text-muted">System pressure</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="humidity"><i class="fas fa-tint mr-1"></i>Humidity (%):</label>
+                                    <input type="number" class="form-control custom-input" id="humidity" name="humidity"
+                                        required>
+                                    <small class="form-text text-muted">Relative humidity</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-navigation mt-4">
+                            <button type="button" class="btn btn-primary next-btn float-right">
+                                Next <i class="fas fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Operational Details -->
+                    <div class="form-step">
+                        <h4 class="step-header"><i class="fas fa-bolt mr-2"></i>Operational Details</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="voltage"><i class="fas fa-bolt mr-1"></i>Voltage (V):</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="voltage"
+                                        name="voltage" required>
+                                    <small class="form-text text-muted">Operating voltage</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="current"><i class="fas fa-bolt mr-1"></i>Current (A):</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="current"
+                                        name="current" required>
+                                    <small class="form-text text-muted">Operating current</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="power_consumption"><i class="fas fa-plug mr-1"></i>Power (kW):</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="power_consumption"
+                                        name="power_consumption" required>
+                                    <small class="form-text text-muted">Power consumption</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="downtime"><i class="fas fa-clock mr-1"></i>Downtime (hrs):</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="downtime"
+                                        name="downtime" required>
+                                    <small class="form-text text-muted">Recent downtime hours</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="production_rate"><i class="fas fa-chart-line mr-1"></i>Production Rate:</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="production_rate"
+                                        name="production_rate" required>
+                                    <small class="form-text text-muted">Current production rate</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-navigation mt-4">
+                            <button type="button" class="btn btn-secondary prev-btn">
+                                <i class="fas fa-arrow-left mr-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary next-btn float-right">
+                                Next <i class="fas fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Maintenance and Environmental Details -->
+                    <div class="form-step">
+                        <h4 class="step-header"><i class="fas fa-tools mr-2"></i>Maintenance Details</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="operational_hours"><i class="fas fa-clock mr-1"></i>Operational Hours:</label>
+                                    <input type="number" class="form-control custom-input" id="operational_hours"
+                                        name="operational_hours" required>
+                                    <small class="form-text text-muted">Total operational hours</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="ambient_temperature"><i class="fas fa-thermometer-half mr-1"></i>Ambient Temp
+                                        (°C):</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="ambient_temperature"
+                                        name="ambient_temperature" required>
+                                    <small class="form-text text-muted">Environment temperature</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="ambient_humidity"><i class="fas fa-tint mr-1"></i>Ambient Humidity (%):</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="ambient_humidity"
+                                        name="ambient_humidity" required>
+                                    <small class="form-text text-muted">Environment humidity</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-navigation mt-4">
+                            <button type="button" class="btn btn-secondary prev-btn">
+                                <i class="fas fa-arrow-left mr-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary next-btn float-right">
+                                Next <i class="fas fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Anomaly and Categorical Details -->
+                    <div class="form-step">
+                        <h4 class="step-header"><i class="fas fa-exclamation-triangle mr-2"></i>Anomaly Details</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="anomaly_score"><i class="fas fa-chart-bar mr-1"></i>Anomaly Score:</label>
+                                    <input type="number" step="any" class="form-control custom-input" id="anomaly_score"
+                                        name="anomaly_score" required>
+                                    <small class="form-text text-muted">System anomaly score</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="anomaly_flag"><i class="fas fa-flag mr-1"></i>Anomaly Flag:</label>
+                                    <select class="form-control custom-select" id="anomaly_flag" name="anomaly_flag" required>
+                                        <option value="0">No</option>
+                                        <option value="1">Yes</option>
+                                    </select>
+                                    <small class="form-text text-muted">Anomaly detected</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="predicted_failure_probability"><i class="fas fa-percentage mr-1"></i>Failure
+                                        Probability:</label>
+                                    <input type="number" step="any" class="form-control custom-input"
+                                        id="predicted_failure_probability" name="predicted_failure_probability" required>
+                                    <small class="form-text text-muted">Predicted failure chance</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="machine_type"><i class="fas fa-robot mr-1"></i>Machine Type:</label>
+                                    <select class="form-control custom-select" id="machine_type" name="machine_type" required>
+                                        <option value="Conveyor Belt">Conveyor Belt</option>
+                                        <option value="Hydraulic Press">Hydraulic Press</option>
+                                    </select>
+                                    <small class="form-text text-muted">Select machine type</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="workload"><i class="fas fa-weight mr-1"></i>Workload:</label>
+                                    <select class="form-control custom-select" id="workload" name="workload" required>
+                                        <option value="Low">Low</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="High">High</option>
+                                    </select>
+                                    <small class="form-text text-muted">Current workload level</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="maintenance_type"><i class="fas fa-wrench mr-1"></i>Maintenance Type:</label>
+                                    <select class="form-control custom-select" id="maintenance_type" name="maintenance_type"
+                                        required>
+                                        <option value="Preventive">Preventive</option>
+                                        <option value="Corrective">Corrective</option>
+                                    </select>
+                                    <small class="form-text text-muted">Maintenance strategy</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-navigation mt-4">
+                            <button type="button" class="btn btn-secondary prev-btn">
+                                <i class="fas fa-arrow-left mr-1"></i> Previous
+                            </button>
+                            <button type="submit" class="btn btn-success float-right">
+                                <i class="fas fa-check mr-1"></i> Submit
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Prediction Result -->
+            <div class="col-md-6" id="result-container">
+                <div id="result" class="prediction-result">
+                    <!-- Results will be displayed here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Form (hidden initially) -->
+        <div id="feedback-container" class="mt-5" style="display: none;">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Feedback</h4>
+                </div>
+                <div class="card-body">
+                    <p>Was this prediction helpful? Please share your feedback to help us improve.</p>
+                    <form id="feedback-form">
+                        <div class="form-group">
+                            <label>Accuracy of prediction:</label>
+                            <div class="rating">
+                                <input type="radio" id="star5" name="accuracy" value="5"><label for="star5"></label>
+                                <input type="radio" id="star4" name="accuracy" value="4"><label for="star4"></label>
+                                <input type="radio" id="star3" name="accuracy" value="3"><label for="star3"></label>
+                                <input type="radio" id="star2" name="accuracy" value="2"><label for="star2"></label>
+                                <input type="radio" id="star1" name="accuracy" value="1"><label for="star1"></label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="comments">Additional comments:</label>
+                            <textarea class="form-control" id="comments" name="comments" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Would you recommend this tool?</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="recommend" id="recommend-yes"
+                                    value="yes">
+                                <label class="form-check-label" for="recommend-yes">Yes</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="recommend" id="recommend-no"
+                                    value="no">
+                                <label class="form-check-label" for="recommend-no">No</label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Submit Feedback</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Center the form and result container */
+    #form-result-container {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        transition: all 0.5s ease;
+        gap: 20px;
+        flex-wrap: nowrap;
+    }
+
+    #form-container {
+        flex: 0 0 100%;
+        max-width: 800px;
+        transition: all 0.5s ease;
+        background: #1e293b;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Added border shadow */
+        padding: 20px;
+    }
+
+    #result-container {
+        flex: 0 0 0;
+        opacity: 0;
+        overflow: hidden;
+        transition: all 0.5s ease;
+    }
+
+    /* When the result is displayed */
+    #form-result-container.result-visible {
+        justify-content: space-between;
+    }
+
+    #form-result-container.result-visible #form-container {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+
+    #form-result-container.result-visible #result-container {
+        flex: 0 0 50%;
+        opacity: 1;
+        max-width: 50%;
+    }
+
+    /* Form styles */
+    .form-step {
+        display: none;
+        animation: fadeIn 0.5s;
+        padding: 25px;
+        background: #1e293b;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        color: white;
+    }
+
+    .form-step.active {
+        display: block;
+    }
+
+    .step-header {
+        color: #f97316;
+        margin-bottom: 25px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f97316;
+        font-weight: 600;
+    }
+
+    .form-group label {
+        font-weight: 500;
+        color: #f97316;
+        margin-bottom: 0.5rem;
+    }
+
+    .custom-input {
+        border-radius: 8px;
+        padding: 12px 15px;
+        border: 1px solid #ced4da;
+        background-color: #334155;
+        color: white;
+        transition: all 0.3s;
+    }
+
+    .custom-input:focus {
+        border-color: #f97316;
+        box-shadow: 0 0 0 0.2rem rgba(249, 115, 22, 0.25);
+    }
+
+    .custom-select {
+        border-radius: 8px;
+        padding: 12px 15px;
+        height: auto;
+        border: 1px solid #ced4da;
+        background-color: #334155;
+        color: white;
+    }
+
+    .btn {
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+
+    .btn-primary {
+        background-color: #f97316;
+        border-color: #f97316;
+    }
+
+    .btn-primary:hover {
+        background-color: #ea580c;
+        border-color: #ea580c;
+        transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+
+    .btn-secondary:hover {
+        background-color: #5a6268;
+        border-color: #545b62;
+        transform: translateY(-2px);
+    }
+
+    .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+
+    .btn-success:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+        transform: translateY(-2px);
+    }
+
+    .form-text {
+        font-size: 0.85rem;
+        color: #f97316;
+    }
+
+    /* Prediction result styles */
+    .prediction-result {
+        padding: 25px;
+        background: #1e293b;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Added border shadow */
+        color: white;
+        height: 100%;
+        border: 1px solid #334155;
+    }
+
+    .prediction-card {
+        background: #334155;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .prediction-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f97316;
+    }
+
+    .prediction-icon {
+        font-size: 24px;
+        margin-right: 10px;
+    }
+
+    .text-danger {
+        color: #dc3545 !important;
+    }
+
+    .text-success {
+        color: #28a745 !important;
+    }
+
+    .text-warning {
+        color: #ffc107 !important;
+    }
+
+    .prediction-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: white;
+        margin: 0;
+    }
+
+    .prediction-detail {
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .detail-label {
+        font-weight: 500;
+        color: #f97316;
+    }
+
+    .detail-value {
+        font-weight: 400;
+        color: white;
+    }
+
+    .confidence-meter {
+        height: 10px;
+        background: #334155;
+        border-radius: 5px;
+        margin-top: 5px;
+        overflow: hidden;
+    }
+
+    .confidence-level {
+        height: 100%;
+        background: #f97316;
+        border-radius: 5px;
+        transition: width 1s ease;
+    }
+
+    .reasons-list {
+        margin-top: 15px;
+        padding-left: 20px;
+    }
+
+    .reasons-list li {
+        margin-bottom: 8px;
+        color: #cbd5e1;
+    }
+
+    /* Animation for the result appearance */
+    @keyframes slideIn {
+        from {
+            transform: translateX(20px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .slide-in {
+        animation: slideIn 0.5s ease forwards;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 992px) {
+        #form-result-container {
+            flex-direction: column;
+        }
+
+        #form-result-container.result-visible #form-container,
+        #form-result-container.result-visible #result-container {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+
+        #result-container {
+            margin-top: 20px;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('prediction-form');
+        const resultDiv = document.getElementById('result');
+        const formResultContainer = document.getElementById('form-result-container');
+
+        // Form navigation
+        const steps = document.querySelectorAll('.form-step');
+        let currentStep = 0;
+
+        function showStep(stepIndex) {
+            steps.forEach((step, index) => {
+                step.classList.toggle('active', index === stepIndex);
+            });
+            currentStep = stepIndex;
+        }
+
+        document.querySelectorAll('.next-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const currentStepForm = steps[currentStep];
+                const inputs = currentStepForm.querySelectorAll('input[required], select[required]');
+                let isValid = true;
+
+                inputs.forEach(input => {
+                    if (!input.value) {
+                        input.classList.add('is-invalid');
+                        isValid = false;
+                    } else {
+                        input.classList.remove('is-invalid');
+                    }
+                });
+
+                if (isValid && currentStep < steps.length - 1) {
+                    showStep(currentStep + 1);
+                }
+            });
+        });
+
+        document.querySelectorAll('.prev-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (currentStep > 0) {
+                    showStep(currentStep - 1);
+                }
+            });
+        });
+
+        // Form submission
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            // Collect form data
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => {
+                data[key] = isNaN(value) ? value : parseFloat(value);
+            });
+
+            // Show loading state
+            resultDiv.innerHTML = `
+                <div class="text-center" style="padding: 40px 0;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-2">Analyzing machine data...</p>
+                </div>
+            `;
+
+            // Show result container with loading state
+            formResultContainer.classList.add('result-visible');
+
+            // Send POST request
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(responseData => {
+                    // Display the prediction result
+                    const isFailure = responseData.prediction === 1;
+                    const reasons = responseData.reasons || "No specific reasons provided.";
+                    const confidence = responseData.probability || 0;
+
+                    // Format reasons as list items if they're in an array
+                    let reasonsHtml = '';
+                    if (Array.isArray(reasons)) {
+                        reasonsHtml = `<ul class="reasons-list">${reasons.map(r => `<li>${r}</li>`).join('')}</ul>`;
+                    } else {
+                        reasonsHtml = `<p>${reasons}</p>`;
+                    }
+
+                    resultDiv.innerHTML = `
+                        <div class="prediction-card slide-in">
+                            <div class="prediction-header">
+                                <i class="fas ${isFailure ? 'fa-exclamation-triangle text-danger' : 'fa-check-circle text-success'} prediction-icon"></i>
+                                <h3 class="prediction-title">${isFailure ? 'Failure Predicted' : 'No Failure Detected'}</h3>
+                            </div>
+                            
+                            <div class="prediction-detail">
+                                <span class="detail-label">Confidence:</span>
+                                <span class="detail-value">${confidence.toFixed(2)}%</span>
+                            </div>
+                            <div class="confidence-meter">
+                                <div class="confidence-level" style="width: ${confidence}%"></div>
+                            </div>
+                            
+                            <div class="prediction-detail">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value ${isFailure ? 'text-danger' : 'text-success'}">
+                                    ${isFailure ? 'Critical' : 'Normal'}
+                                </span>
+                            </div>
+                            
+                            <div class="prediction-detail">
+                                <span class="detail-label">Recommendation:</span>
+                                <span class="detail-value">
+                                    ${isFailure ? 'Immediate maintenance required' : 'Continue normal operations'}
+                                </span>
+                            </div>
+                            
+                            <h5 class="mt-4" style="color: #f97316;">Key Factors:</h5>
+                            ${reasonsHtml}
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    resultDiv.innerHTML = `
+                        <div class="prediction-card slide-in">
+                            <div class="prediction-header">
+                                <i class="fas fa-exclamation-circle text-warning prediction-icon"></i>
+                                <h3 class="prediction-title">Error</h3>
+                            </div>
+                            <p>Failed to process your request. Please try again later.</p>
+                            <p class="text-muted">${error.message}</p>
+                        </div>
+                    `;
+                });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block title %}Failure Analysis{% endblock %}
+{% block content %}
+<div class="container-fluid p-5">
+    <!-- Row 1: Failure Probability Gauge and Top 5 At-Risk Machines -->
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Failure Probability Gauge</h5>
+                <div id="failureProbabilityGauge" style="height: 300px;"></div>
+            </div>
+        </div>
+        <div class="col-md-8 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Top 5 At-Risk Machines</h5>
+                <table class="table table-dark table-striped">
+                    <thead>
+                        <tr>
+                            <th>Machine ID</th>
+                            <th>Failure Type</th>
+                            <th>Predicted Failure Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="atRiskMachinesTable">
+                        <!-- Data will be dynamically populated -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Failure Counts Over Time and Failure Type Distribution -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Failure Counts Over Time</h5>
+                <div id="failureCountsChart" style="height: 300px;"></div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Failure Type Distribution</h5>
+                <div id="failureTypeDistributionChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 3: Feature Importance and Time-Series Forecasting -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Feature Importance</h5>
+                <div id="featureImportanceChart" style="height: 300px;"></div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Time-Series Forecasting</h5>
+                <div id="timeSeriesForecastingChart" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 4: Anomaly Detection and Confusion Matrix -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Anomaly Detection</h5>
+                <div id="anomalyDetectionBoxPlots" style="height: 300px;"></div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">Confusion Matrix</h5>
+                <div id="confusionMatrix" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 5: ROC Curve -->
+    <!-- <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
+                <h5 class="text-center text-white">ROC Curve</h5>
+                <div id="rocCurve" style="height: 300px;"></div>
+            </div>
+        </div>
+    </div> -->
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Helper function to handle empty or invalid data
+        function handleEmptyData(data, chartId, message) {
+            if (!data || data.length === 0) {
+                document.getElementById(chartId).innerHTML = `<p style="color: white; text-align: center;">${message}</p>`;
+                return true;
+            }
+            return false;
+        }
+
+        // Helper function to handle API errors
+        function handleApiError(chartId, message) {
+            document.getElementById(chartId).innerHTML = `<p style="color: white; text-align: center;">${message}</p>`;
+        }
+
+        // Failure Probability Gauge
+        fetch('/api/failure-probability')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data, 'failureProbabilityGauge', 'No data available for Failure Probability')) return;
+
+                const trace = {
+                    type: "indicator",
+                    mode: "gauge+number",
+                    value: data.probability,
+                    gauge: {
+                        axis: { range: [0, 100] },
+                        bar: { color: "#FF5733" },
+                        steps: [
+                            { range: [0, 50], color: "#4CAF50" },
+                            { range: [50, 80], color: "#FFEB3B" },
+                            { range: [80, 100], color: "#F44336" }
+                        ]
+                    }
+                };
+                const layout = {
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('failureProbabilityGauge', [trace], layout);
+            });
+
+        // Top 5 At-Risk Machines
+        fetch('/api/at-risk-machines')
+            .then(response => response.json())
+            .then(data => {
+                const tableBody = document.getElementById('atRiskMachinesTable');
+                if (!data || data.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="3" class="text-center">No at-risk machines available</td></tr>';
+                    return;
+                }
+
+                data.forEach(machine => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${machine.Machine_ID}</td>
+                        <td>${machine.Failure_Type}</td>
+                        <td>${machine.Predicted_Failure_Time}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            });
+
+        // Failure Counts Over Time (Daily)
+        fetch('/api/historical-patterns')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data, 'failureCountsChart', 'No data available for Failure Counts Over Time')) return;
+
+                const trace = {
+                    x: data.timestamps,
+                    y: data.failure_counts,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    marker: { color: '#FFC300' }
+                };
+                const layout = {
+                    xaxis: { title: "Date" },
+                    yaxis: { title: "Failure Counts" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('failureCountsChart', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching failure counts over time:', error);
+                handleApiError('failureCountsChart', 'Error fetching failure counts over time');
+            });
+
+        // Failure Type Distribution
+        fetch('/api/failure-type-distribution')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data, 'failureTypeDistributionChart', 'No data available for Failure Type Distribution')) return;
+
+                const trace = {
+                    labels: data.labels,
+                    values: data.values,
+                    type: 'pie',
+                    marker: { colors: ['#4CAF50', '#FFEB3B', '#F44336'] }
+                };
+                const layout = {
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('failureTypeDistributionChart', [trace], layout);
+            });
+
+        // Fetch Feature Importance Data
+        fetch('/api/feature-importance')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching feature importance:', data.error);
+                    document.getElementById('featureImportanceChart').innerHTML = '<p style="color: white; text-align: center;">Failed to fetch feature importance data</p>';
+                    return;
+                }
+
+                const trace = {
+                    x: data.features,
+                    y: data.importance,
+                    type: 'bar',
+                    marker: { color: ['#FF5733', '#FFC300', '#4CAF50'] }
+                };
+                const layout = {
+                    xaxis: { title: "Features" },
+                    yaxis: { title: "Importance Score" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('featureImportanceChart', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching feature importance:', error);
+                document.getElementById('featureImportanceChart').innerHTML = '<p style="color: white; text-align: center;">Error fetching feature importance data</p>';
+            });
+
+        // Time-Series Forecasting
+        fetch('/api/time-series-forecasting')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data, 'timeSeriesForecastingChart', 'No data available for Time-Series Forecasting')) return;
+
+                const trace = {
+                    x: data.timestamps,
+                    y: data.probabilities,
+                    type: 'line',
+                    line: { color: '#FF5733' }
+                };
+                const layout = {
+                    xaxis: { title: "Time" },
+                    yaxis: { title: "Failure Probability" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('timeSeriesForecastingChart', [trace], layout);
+            });
+
+        // Anomaly Detection Box Plots
+        fetch('/api/anomaly-detection')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data.values, 'anomalyDetectionBoxPlots', 'No data available for Anomaly Detection')) return;
+
+                const trace = {
+                    y: data.values,
+                    type: 'box',
+                    marker: { color: '#FFC300' }
+                };
+                const layout = {
+                    xaxis: { title: "Timestamps" },
+                    yaxis: { title: "Anomaly Score" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('anomalyDetectionBoxPlots', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching anomaly detection data:', error);
+                handleApiError('anomalyDetectionBoxPlots', 'Error fetching anomaly detection data');
+            });
+
+        // Confusion Matrix
+        fetch('/api/confusion-matrix')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data, 'confusionMatrix', 'No data available for Confusion Matrix')) return;
+
+                const trace = {
+                    z: data.matrix,
+                    x: data.labels,
+                    y: data.labels,
+                    type: 'heatmap',
+                    colorscale: 'Viridis'
+                };
+                const layout = {
+                    xaxis: { title: "Predicted" },
+                    yaxis: { title: "Actual" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('confusionMatrix', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching confusion matrix:', error);
+                handleApiError('confusionMatrix', 'Error fetching confusion matrix');
+            });
+
+        // ROC Curve
+        fetch('/api/roc-curve')
+            .then(response => response.json())
+            .then(data => {
+                if (handleEmptyData(data, 'rocCurve', 'No data available for ROC Curve')) return;
+
+                const trace = {
+                    x: data.fpr,
+                    y: data.tpr,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#FF5733' }
+                };
+                const layout = {
+                    xaxis: { title: "False Positive Rate" },
+                    yaxis: { title: "True Positive Rate" },
+                    plot_bgcolor: "#1e293b",
+                    paper_bgcolor: "#1e293b",
+                    font: { color: "#ffffff" }
+                };
+                Plotly.newPlot('rocCurve', [trace], layout);
+            })
+            .catch(error => {
+                console.error('Error fetching ROC curve:', error);
+                handleApiError('rocCurve', 'Error fetching ROC curve');
+            });
+    });
+</script>
+{% endblock %}
