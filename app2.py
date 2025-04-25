@@ -6,6 +6,9 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 import json
+from sklearn.metrics import confusion_matrix, roc_curve
+import joblib
+print(joblib.load("feature_names.pkl"))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -14,7 +17,11 @@ app = Flask(__name__)
 
 # Load the trained model
 try:
-    model = joblib.load('equipment_failure_model.pkl')
+    model = joblib.load('xgboost_model.pkl')
+    expected_features = joblib.load("feature_names.pkl")
+    X_test = joblib.load("X_test.pkl")
+    y_test = joblib.load("y_test.pkl")
+
     logging.info("Model loaded successfully")
 except Exception as e:
     logging.error(f"Error loading model: {e}")
@@ -233,52 +240,56 @@ def get_sensor_data():
         if conn:
             conn.close()
 
+
+expected_features = joblib.load("feature_names.pkl")
+
 @app.route('/predict', methods=['POST'])
 def predict():
-    """Make failure predictions based on input data."""
     try:
-        # Check if request is JSON
         if not request.is_json:
             return jsonify({"error": "Request must be JSON"}), 400
 
-        # Parse input data from the request
         data = request.get_json()
-        logging.info(f"Received data for prediction: {data}")
+        logging.info(f"Received data: {data}")
 
-        # Validate input fields
         required_fields = [
-            'age', 'temperature', 'vibration', 'pressure', 'humidity', 
-            'voltage', 'current', 'power_consumption', 'downtime', 
-            'production_rate', 'operational_hours', 'ambient_temperature', 
-            'ambient_humidity', 'anomaly_score', 'anomaly_flag', 
-            'predicted_failure_probability', 'machine_type', 'workload',
-            'maintenance_type'
+            'age', 'temperature', 'vibration', 'pressure', 'humidity',
+            'voltage', 'current', 'power_consumption', 'downtime', 'production_rate',
+            'operational_hours', 'ambient_temperature', 'ambient_humidity',
+            'anomaly_score', 'anomaly_flag', 'predicted_failure_probability',
+            'machine_type', 'workload', 'maintenance_type'
         ]
-        
+
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
-            error_message = f"Missing required fields: {', '.join(missing_fields)}"
-            logging.error(f"Validation failed. Missing fields: {missing_fields}")
-            return jsonify({"error": error_message}), 400
+            return jsonify({"error": f"Missing fields: {', '.join(missing_fields)}"}), 400
 
-        # Replace None values with default values and validate non-negative inputs
         for field in required_fields:
             if data.get(field) is None:
-                if field in ['anomaly_flag']:  # Integer fields
-                    data[field] = 0
-                elif field in ['machine_type', 'workload', 'maintenance_type']:  # Categorical fields
+                if field in ['machine_type', 'workload', 'maintenance_type']:
                     data[field] = 'Unknown'
-                else:  # Numerical fields
+                elif field == 'anomaly_flag':
+                    data[field] = 0
+                else:
                     data[field] = 0.0
             elif isinstance(data[field], (int, float)) and data[field] < 0:
-                error_message = f"Invalid value for {field}: {data[field]}. Must be non-negative."
-                logging.error(error_message)
-                return jsonify({"error": error_message}), 400
+                return jsonify({"error": f"Invalid value for {field}: Must be non-negative"}), 400
 
-        # Log parsed data for debugging
-        logging.info(f"Parsed data: {data}")
+        # Validate and sanitize categorical inputs
+        valid_machine_types = ['Conveyor Belt', 'Hydraulic Press']
+        valid_workloads = ['Low', 'Medium', 'High']
+        valid_maintenance_types = ['Preventive', 'Corrective']
 
-        # Create DataFrame with expected features
+        if data['machine_type'] not in valid_machine_types:
+            logging.warning(f"Invalid machine_type '{data['machine_type']}' received, defaulting to 'Unknown'")
+            data['machine_type'] = 'Unknown'
+        if data['workload'] not in valid_workloads:
+            logging.warning(f"Invalid workload '{data['workload']}' received, defaulting to 'Unknown'")
+            data['workload'] = 'Unknown'
+        if data['maintenance_type'] not in valid_maintenance_types:
+            logging.warning(f"Invalid maintenance_type '{data['maintenance_type']}' received, defaulting to 'Unknown'")
+            data['maintenance_type'] = 'Unknown'
+
         try:
             input_data = pd.DataFrame([{
                 'Age': float(data['age']),
@@ -292,83 +303,195 @@ def predict():
                 'Downtime (hrs)': float(data['downtime']),
                 'Production_Rate': float(data['production_rate']),
                 'Operational_Hours': float(data['operational_hours']),
+                'Maintenance_Cost ($)': 0.0,
+                'Maintenance_Duration (hrs)': 0.0,
                 'Ambient_Temperature (°C)': float(data['ambient_temperature']),
                 'Ambient_Humidity (%)': float(data['ambient_humidity']),
                 'Anomaly_Score': float(data['anomaly_score']),
                 'Anomaly_Flag': int(data['anomaly_flag']),
                 'Predicted_Failure_Probability': float(data['predicted_failure_probability']),
-                'Machine_Type_' + data['machine_type']: 1,
-                'Workload_' + data['workload']: 1,
-                'Maintenance_Type_' + data['maintenance_type']: 1
+                'Machine_Type': data['machine_type'],
+                'Workload': data['workload'],
+                'Maintenance_Type': data['maintenance_type']
             }])
 
-            # Ensure all expected columns are present (add missing with 0)
-            expected_columns = [
-                'Age', 'Temperature (°C)', 'Vibration (mm/s)', 'Pressure (psi)', 
-                'Humidity (%)', 'Voltage (V)', 'Current (A)', 'Power_Consumption (kW)',
-                'Downtime (hrs)', 'Production_Rate', 'Operational_Hours',
-                'Ambient_Temperature (°C)', 'Ambient_Humidity (%)', 'Anomaly_Score',
-                'Anomaly_Flag', 'Predicted_Failure_Probability',
-                'Machine_Type_Conveyor Belt', 'Machine_Type_Hydraulic Press',
-                'Workload_Low', 'Workload_Medium', 'Workload_High',
-                'Maintenance_Type_Preventive', 'Maintenance_Type_Corrective'
-            ]
-            
-            for col in expected_columns:
-                if col not in input_data.columns:
-                    input_data[col] = 0
+            logging.info(f"Input DataFrame before encoding: {input_data.columns.tolist()}")
+            input_data = pd.get_dummies(input_data, columns=['Machine_Type', 'Workload', 'Maintenance_Type'], drop_first=True)
+            logging.info(f"Input DataFrame after encoding: {input_data.columns.tolist()}")
 
-            # Reorder columns to match training data
-            input_data = input_data[expected_columns]
+            missing_cols = [col for col in expected_features if col not in input_data.columns]
+            for col in missing_cols:
+                input_data[col] = 0
+                logging.info(f"Added missing column: {col}")
+
+            extra_cols = [col for col in input_data.columns if col not in expected_features]
+            if extra_cols:
+                input_data = input_data.drop(columns=extra_cols)
+                logging.info(f"Removed extra columns: {extra_cols}")
+
+            input_data = input_data[expected_features]
+
+            if list(input_data.columns) != list(expected_features):
+                logging.error(f"Feature mismatch: Expected {expected_features}, Got {input_data.columns.tolist()}")
+                return jsonify({"error": "Feature names do not match expected features"}), 400
+
+            logging.info(f"Final Input DataFrame columns: {input_data.columns.tolist()}")
 
         except Exception as e:
             logging.error(f"Error creating DataFrame: {str(e)}")
             return jsonify({"error": f"Invalid input data: {str(e)}"}), 400
 
-        # Log the aligned DataFrame
-        logging.info(f"Aligned Input DataFrame: {input_data.to_dict()}")
-
-        # Make prediction using the loaded model
         try:
-            # Replace this with your actual model prediction code
-            # prediction = model.predict(input_data)[0]
-            # probability = model.predict_proba(input_data)[0][1] * 100
-            
-            # For demo purposes - replace with actual model calls
-            prediction = 1 if float(data['anomaly_score']) > 0.5 else 0
-            probability = float(data['predicted_failure_probability'])
-            
+            prediction = model.predict(input_data)[0]
+            probability = model.predict_proba(input_data)[0][1] * 100
+            logging.info(f"Prediction: {prediction}, Probability: {probability}%")
+
+            # Determine reasons
+            reasons = []
+            if data.get("temperature") > 80:
+                reasons.append("High temperature.")
+            if data.get("vibration") > 2.0:
+                reasons.append("Excessive vibration.")
+            if data.get("pressure") > 150:
+                reasons.append("High pressure.")
+            if data.get("humidity") > 70:
+                reasons.append("High humidity.")
+            if data.get("downtime") > 5:
+                reasons.append("Extended downtime.")
+            if data.get("anomaly_score", 0) > 0.5:
+                reasons.append("High anomaly score.")
+            if data.get("anomaly_flag") == 1:
+                reasons.append("Anomaly detected.")
+            if not reasons:
+                reasons.append("No specific reasons.")
+
+            response = {
+                "prediction": int(prediction),
+                "probability": round(float(probability), 2),
+                "reasons": reasons
+            }
+            logging.info(f"Prediction response: {response}")
+            return jsonify(response), 200
+
         except Exception as e:
-            logging.error(f"Error during model prediction: {str(e)}")
-            return jsonify({"error": f"Model prediction failed: {str(e)}"}), 500
-
-        # Determine reasons for failure based on input features
-        reasons = []
-        if data.get("temperature") > 80:
-            reasons.append("High operating temperature.")
-        if data.get("vibration") > 2.0:
-            reasons.append("Excessive vibration levels.")
-        if data.get("pressure") > 150:
-            reasons.append("High system pressure.")
-        if data.get("humidity") > 70:
-            reasons.append("High humidity levels.")
-        if data.get("downtime") > 5:
-            reasons.append("Extended recent downtime.")
-        if not reasons:
-            reasons.append("No specific reasons identified.")
-
-        # Return prediction result
-        return jsonify({
-            "prediction": int(prediction),
-            "probability": round(probability, 2),  # Already in percentage
-            "reasons": " ".join(reasons)
-        })
+            logging.error(f"Prediction error: {str(e)}")
+            return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
     except Exception as e:
-        logging.error(f"Unexpected error in /predict: {str(e)}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
+        logging.error(f"Unexpected error: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+    
+# @app.route('/predict', methods=['POST'])
+# def predict():
+#     try:
+#         if not request.is_json:
+#             return jsonify({"error": "Request must be JSON"}), 400
 
+#         data = request.get_json()
+#         logging.info(f"Received data: {data}")
 
+#         # Validate required fields (all form fields)
+#         required_fields = [
+#             'age', 'temperature', 'vibration', 'pressure', 'humidity',
+#             'voltage', 'current', 'power_consumption', 'downtime', 'production_rate',
+#             'operational_hours', 'ambient_temperature', 'ambient_humidity',
+#             'anomaly_score', 'anomaly_flag', 'predicted_failure_probability',
+#             'machine_type', 'workload', 'maintenance_type'
+#         ]
+#         missing_fields = [field for field in required_fields if field not in data]
+#         if missing_fields:
+#             return jsonify({"error": f"Missing fields: {', '.join(missing_fields)}"}), 400
+
+#         # Handle None and negative values
+#         for field in required_fields:
+#             if data.get(field) is None:
+#                 if field in ['machine_type', 'workload', 'maintenance_type']:
+#                     data[field] = 'Unknown'
+#                 elif field == 'anomaly_flag':
+#                     data[field] = 0
+#                 else:
+#                     data[field] = 0.0
+#             elif isinstance(data[field], (int, float)) and data[field] < 0:
+#                 return jsonify({"error": f"Invalid value for {field}: Must be non-negative"}), 400
+
+#         # Create DataFrame with form features
+#         try:
+#             input_data = pd.DataFrame([{
+#                 'Age': float(data['age']),
+#                 'Temperature (°C)': float(data['temperature']),
+#                 'Vibration (mm/s)': float(data['vibration']),
+#                 'Pressure (psi)': float(data['pressure']),
+#                 'Humidity (%)': float(data['humidity']),
+#                 'Voltage (V)': float(data['voltage']),
+#                 'Current (A)': float(data['current']),
+#                 'Power_Consumption (kW)': float(data['power_consumption']),
+#                 'Downtime (hrs)': float(data['downtime']),
+#                 'Production_Rate': float(data['production_rate']),
+#                 'Operational_Hours': float(data['operational_hours']),
+#                 'Maintenance_Cost ($)': 0.0,  # Not in form, default to 0
+#                 'Maintenance_Duration (hrs)': 0.0,  # Not in form, default to 0
+#                 'Ambient_Temperature (°C)': float(data['ambient_temperature']),
+#                 'Ambient_Humidity (%)': float(data['ambient_humidity']),
+#                 'Anomaly_Score': float(data['anomaly_score']),
+#                 'Anomaly_Flag': int(data['anomaly_flag']),
+#                 'Predicted_Failure_Probability': float(data['predicted_failure_probability']),
+#                 'Machine_Type': data['machine_type'],
+#                 'Workload': data['workload'],
+#                 'Maintenance_Type': data['maintenance_type']
+#             }])
+
+#             # Encode categorical variables
+#             input_data = pd.get_dummies(input_data, columns=['Machine_Type', 'Workload', 'Maintenance_Type'], drop_first=True)
+
+#             # Align with expected_features
+#             for col in expected_features:
+#                 if col not in input_data.columns:
+#                     input_data[col] = 0
+#             input_data = input_data[expected_features]
+
+#         except Exception as e:
+#             logging.error(f"Error creating DataFrame: {str(e)}")
+#             return jsonify({"error": f"Invalid input data: {str(e)}"}), 400
+
+#         # Log DataFrame
+#         logging.info(f"Input DataFrame columns: {input_data.columns.tolist()}")
+
+#         # Make prediction
+#         try:
+#             prediction = model.predict(input_data)[0]
+#             probability = model.predict_proba(input_data)[0][1] * 100
+#         except Exception as e:
+#             logging.error(f"Prediction error: {str(e)}")
+#             return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+
+#         # Determine reasons
+#         reasons = []
+#         if data.get("temperature") > 80:
+#             reasons.append("High temperature.")
+#         if data.get("vibration") > 2.0:
+#             reasons.append("Excessive vibration.")
+#         if data.get("pressure") > 150:
+#             reasons.append("High pressure.")
+#         if data.get("humidity") > 70:
+#             reasons.append("High humidity.")
+#         if data.get("downtime") > 5:
+#             reasons.append("Extended downtime.")
+#         if data.get("anomaly_score", 0) > 0.5:
+#             reasons.append("High anomaly score.")
+#         if data.get("anomaly_flag") == 1:
+#             reasons.append("Anomaly detected.")
+#         if not reasons:
+#             reasons.append("No specific reasons.")
+
+#         return jsonify({
+#             "prediction": int(prediction),
+#             "probability": round(probability, 2),
+#             "reasons": reasons
+#         })
+
+#     except Exception as e:
+#         logging.error(f"Unexpected error: {str(e)}")
+#         return jsonify({"error": "Unexpected error occurred"}), 500
 
 @app.route('/api/failure-records', methods=['GET'])
 def get_failure_records():
@@ -833,7 +956,6 @@ def get_sensor_trend_correlations():
         if conn:
             conn.close()
 
-
 @app.route('/api/machine-health-overview', methods=['GET'])
 def get_machine_health_overview():
     """Fetch real-time machine health overview."""
@@ -847,8 +969,7 @@ def get_machine_health_overview():
         SELECT 
             COUNT(*) AS total_machines,
             SUM(CASE WHEN fr.Failure_Status = 0 AND fr.Predicted_Failure_Probability > 0.7 THEN 1 ELSE 0 END) AS warning_machines,
-            SUM(CASE WHEN fr.Failure_Status = 1 THEN 1 ELSE 0 END) AS critical_machines,
-            SUM(CASE WHEN fr.Failure_Status = 0 AND (fr.Predicted_Failure_Probability <= 0.7 OR fr.Predicted_Failure_Probability IS NULL) THEN 1 ELSE 0 END) AS normal_machines
+            SUM(CASE WHEN fr.Failure_Status = 1 THEN 1 ELSE 0 END) AS critical_machines
         FROM Machines m
         LEFT JOIN FailureRecords fr ON m.Machine_ID = fr.Machine_ID
         """
@@ -861,6 +982,9 @@ def get_machine_health_overview():
             logging.warning("No data found for /api/machine-health-overview")
             return jsonify({"total_machines": 0, "warning_machines": 0, "critical_machines": 0, "normal_machines": 0})
 
+        # Calculate normal_machines as total_machines - (warning_machines + critical_machines)
+        result['normal_machines'] = result['total_machines'] - (result['warning_machines'] + result['critical_machines'])
+
         logging.info(f"Data fetched for /api/machine-health-overview: {result}")
         return jsonify(result)
     except Exception as e:
@@ -869,6 +993,43 @@ def get_machine_health_overview():
     finally:
         if conn:
             conn.close()
+            
+
+# @app.route('/api/machine-health-overview', methods=['GET'])
+# def get_machine_health_overview():
+#     """Fetch real-time machine health overview."""
+#     conn = create_db_connection()
+#     if not conn:
+#         logging.error("Database connection failed for /api/machine-health-overview")
+#         return jsonify({"error": "Database connection failed"}), 500
+
+#     try:
+#         query = """
+#         SELECT 
+#             COUNT(*) AS total_machines,
+#             SUM(CASE WHEN fr.Failure_Status = 0 AND fr.Predicted_Failure_Probability > 0.7 THEN 1 ELSE 0 END) AS warning_machines,
+#             SUM(CASE WHEN fr.Failure_Status = 1 THEN 1 ELSE 0 END) AS critical_machines,
+#             SUM(CASE WHEN fr.Failure_Status = 0 AND (fr.Predicted_Failure_Probability <= 0.7 OR fr.Predicted_Failure_Probability IS NULL) THEN 1 ELSE 0 END) AS normal_machines
+#         FROM Machines m
+#         LEFT JOIN FailureRecords fr ON m.Machine_ID = fr.Machine_ID
+#         """
+#         cursor = conn.cursor(dictionary=True)
+#         cursor.execute(query)
+#         result = cursor.fetchone()
+#         cursor.close()
+
+#         if not result:
+#             logging.warning("No data found for /api/machine-health-overview")
+#             return jsonify({"total_machines": 0, "warning_machines": 0, "critical_machines": 0, "normal_machines": 0})
+
+#         logging.info(f"Data fetched for /api/machine-health-overview: {result}")
+#         return jsonify(result)
+#     except Exception as e:
+#         logging.error(f"Error fetching machine health overview: {e}")
+#         return jsonify({"error": str(e)}), 500
+#     finally:
+#         if conn:
+#             conn.close()
 
 
 @app.route('/api/machine-status', methods=['GET'])
@@ -1713,6 +1874,34 @@ def get_feature_importance():
         logging.error(f"Error fetching feature importance data: {e}")
         return jsonify({"error": str(e)}), 500
 
+# @app.route('/api/time-series-forecasting', methods=['GET'])
+# def get_time_series_forecasting():
+#     try:
+#         # Load data and model
+#         data = load_data()
+#         lstm_model, scaler = get_model_and_scaler()
+        
+#         # Prepare input for forecasting
+#         look_back = 7
+#         last_values = data['Predicted_Failure_Probability'].values[-look_back:]
+#         scaled_values = scaler.transform(last_values.reshape(-1, 1))
+        
+#         # Predict 30 days
+#         n_future = 30
+#         future_predictions = predict_future(lstm_model, scaler, scaled_values, n_future)
+        
+#         # Generate future dates
+#         last_date = data['Timestamp'].iloc[-1]
+#         future_dates = [last_date + timedelta(days=i + 1) for i in range(n_future)]
+#         future_dates_str = [d.strftime('%Y-%m-%d') for d in future_dates]
+        
+#         return jsonify({
+#             "timestamps": future_dates_str,
+#             "values": future_predictions.tolist()
+#         })
+#     except Exception as e:
+#         logging.error(f"Error in time-series forecasting API: {e}")
+#         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/time-series-forecasting', methods=['GET'])
 def get_time_series_forecasting():
@@ -1783,13 +1972,20 @@ def get_anomaly_detection():
         if conn:
             conn.close()
 
-
 @app.route('/api/confusion-matrix', methods=['GET'])
 def get_confusion_matrix():
-    # Replace with mock data as the required table/columns are missing
     try:
+        # Make predictions on test data
+        y_pred = model.predict(X_test)
+        
+        # Compute confusion matrix
+        cm = confusion_matrix(y_test, y_pred)
+        
+        # Convert numpy array to list for JSON serialization
+        cm_list = cm.tolist()
+        
         data = {
-            "matrix": [[50, 10], [5, 35]],
+            "matrix": cm_list,
             "labels": ["Normal", "Failure"]
         }
         return jsonify(data)
@@ -1797,19 +1993,54 @@ def get_confusion_matrix():
         logging.error(f"Error fetching confusion matrix data: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @app.route('/api/roc-curve', methods=['GET'])
 def get_roc_curve():
-    # Replace with mock data as the required table/columns are missing
     try:
+        # Get prediction probabilities for ROC curve
+        y_score = model.predict_proba(X_test)[:, 1]
+        
+        # Compute ROC curve
+        fpr, tpr, _ = roc_curve(y_test, y_score)
+        
+        # Convert numpy arrays to lists for JSON serialization
+        fpr_list = fpr.tolist()
+        tpr_list = tpr.tolist()
+        
         data = {
-            "fpr": [0.0, 0.1, 0.2, 0.3, 0.4, 1.0],
-            "tpr": [0.0, 0.4, 0.6, 0.8, 0.9, 1.0]
+            "fpr": fpr_list,
+            "tpr": tpr_list
         }
         return jsonify(data)
     except Exception as e:
         logging.error(f"Error fetching ROC curve data: {e}")
         return jsonify({"error": str(e)}), 500
+    
+# @app.route('/api/confusion-matrix', methods=['GET'])
+# def get_confusion_matrix():
+#     # Replace with mock data as the required table/columns are missing
+#     try:
+#         data = {
+#             "matrix": [[50, 10], [5, 35]],
+#             "labels": ["Normal", "Failure"]
+#         }
+#         return jsonify(data)
+#     except Exception as e:
+#         logging.error(f"Error fetching confusion matrix data: {e}")
+#         return jsonify({"error": str(e)}), 500
+
+
+# @app.route('/api/roc-curve', methods=['GET'])
+# def get_roc_curve():
+#     # Replace with mock data as the required table/columns are missing
+#     try:
+#         data = {
+#             "fpr": [0.0, 0.1, 0.2, 0.3, 0.4, 1.0],
+#             "tpr": [0.0, 0.4, 0.6, 0.8, 0.9, 1.0]
+#         }
+#         return jsonify(data)
+#     except Exception as e:
+#         logging.error(f"Error fetching ROC curve data: {e}")
+#         return jsonify({"error": str(e)}), 500
 
 @app.route('/favicon.ico')
 def favicon():

@@ -77,8 +77,8 @@
         </div>
     </div>
 
-    <!-- Row 5: ROC Curve -->
-    <!-- <div class="row">
+    <!-- Row 5: ROC Curve --> 
+     <!-- <div class="row">
         <div class="col-md-12 mb-4">
             <div class="dashboard-card mx-auto" style="width: 100%; height: 100%;">
                 <h5 class="text-center text-white">ROC Curve</h5>
@@ -252,6 +252,39 @@
                 };
                 Plotly.newPlot('timeSeriesForecastingChart', [trace], layout);
             });
+
+
+        // fetch('/api/time-series-forecasting')
+        //         .then(response => {
+        //             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        //             return response.json();
+        //         })
+        //         .then(data => {
+        //             if (!data.timestamps || !data.values || data.timestamps.length === 0) {
+        //                 chartDiv.innerHTML = '<p style="text-align: center;">No data available</p>';
+        //                 return;
+        //             }
+
+        //             const trace = {
+        //                 x: data.timestamps,
+        //                 y: data.values,
+        //                 type: 'line',
+        //                 line: { color: '#FF5733' }
+        //             };
+        //             const layout = {
+        //                 xaxis: { title: 'Date' },
+        //                 yaxis: { title: 'Failure Probability', range: [0, 1] },
+        //                 plot_bgcolor: '#1e293b',
+        //                 paper_bgcolor: '#1e293b',
+        //                 font: { color: '#ffffff' },
+        //                 margin: { t: 20, b: 50, l: 50, r: 20 }
+        //             };
+        //             Plotly.newPlot(chartDiv, [trace], layout);
+        //         })
+        //         .catch(error => {
+        //             console.error('Error:', error);
+        //             chartDiv.innerHTML = `<p style="text-align: center;">Error: ${error.message}</p>`;
+        //         });
 
         // Anomaly Detection Box Plots
         fetch('/api/anomaly-detection')
